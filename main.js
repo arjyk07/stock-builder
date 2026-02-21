@@ -30,21 +30,37 @@ function setCache(range, data) {
     } catch { /* 저장 공간 부족 시 무시 */ }
 }
 
-// ── Yahoo Finance 호출 (직접 + 프록시 동시 경쟁) ─────────────────────────
+// ── fetch + 수동 타임아웃 (AbortSignal.timeout 미지원 환경 대응) ──────────
+function fetchWithTimeout(url, ms) {
+    const ctrl  = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), ms);
+    return fetch(url, { signal: ctrl.signal })
+        .finally(() => clearTimeout(timer));
+}
+
+// CORS 프록시 목록 (순서대로 동시 시도)
+const PROXIES = [
+    (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+    (u) => `https://corsproxy.io/?${encodeURIComponent(u)}`,
+];
+
+// ── Yahoo Finance 호출 ────────────────────────────────────────────────────
 async function fetchYahoo(range) {
     const url = YAHOO_URL(range);
-    const timeout = 8000;
 
     const tryFetch = (target) =>
-        fetch(target, { signal: AbortSignal.timeout(timeout) })
+        fetchWithTimeout(target, 8000)
             .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
             .then(j => { if (!j?.chart?.result) throw new Error('no result'); return j; });
 
-    // 직접 호출과 프록시를 동시에 시작 → 먼저 성공한 쪽 사용
+    // 직접 + 모든 프록시를 동시에 시도 → 가장 먼저 성공한 응답 사용
     return Promise.any([
         tryFetch(url),
-        tryFetch(PROXY_URL(url)),
-    ]).catch(() => { throw new Error('데이터를 불러올 수 없습니다'); });
+        ...PROXIES.map(p => tryFetch(p(url))),
+    ]).catch((err) => {
+        console.error('[fetchYahoo] 모든 요청 실패:', err);
+        throw new Error('데이터를 불러올 수 없습니다');
+    });
 }
 
 // ── 응답 파싱 ─────────────────────────────────────────────────────────────
@@ -144,7 +160,12 @@ function showChart() {
 
 function showError(msg) {
     overlayEl.className = 'chart-overlay error';
-    overlayEl.innerHTML = `⚠️ ${msg}<br><small style="color:#8b949e">잠시 후 다시 시도해주세요.</small>`;
+    overlayEl.innerHTML = `
+        <span>⚠️ ${msg}</span>
+        <small style="color:#8b949e">네트워크 상태를 확인하거나 아래 버튼을 눌러주세요.</small>
+        <button id="retry-btn" style="margin-top:8px;padding:6px 16px;background:#1f6feb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem;">다시 시도</button>
+    `;
+    document.getElementById('retry-btn').addEventListener('click', () => loadData(activePeriod));
 }
 
 // ── 데이터 적용 ───────────────────────────────────────────────────────────
@@ -162,16 +183,20 @@ async function loadData(range) {
 
     showLoading();
     try {
-        const json = await fetchYahoo(range);
-        currentData = parseYahoo(json);
-        setCache(range, currentData);
+        // 전체 최대 대기 15초 — 모든 fetch가 멈춰도 로딩 화면에 갇히지 않음
+        const hardTimeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('응답 시간 초과 (15초)')), 15000)
+        );
+        const json = await Promise.race([fetchYahoo(range), hardTimeout]);
 
+        currentData = parseYahoo(json);
         if (currentData.length === 0) throw new Error('수신된 봉 데이터가 없습니다');
 
+        setCache(range, currentData);
         applyToChart(currentData);
         showChart();
     } catch (err) {
-        console.error(err);
+        console.error('[loadData]', err);
         showError(err.message || '데이터를 불러올 수 없습니다');
     }
 }
