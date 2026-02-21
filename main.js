@@ -10,25 +10,41 @@ const YAHOO_URL = (range) =>
 const PROXY_URL = (url) =>
     `https://corsproxy.io/?${encodeURIComponent(url)}`;
 
-// ── Yahoo Finance 호출 ────────────────────────────────────────────────────
-async function fetchYahoo(range) {
-    const direct = YAHOO_URL(range);
+// ── 캐시 (localStorage, TTL 10분) ────────────────────────────────────────
+const CACHE_TTL = 10 * 60 * 1000;
 
-    // 1차: 직접 호출
+function getCached(range) {
     try {
-        const res = await fetch(direct, { signal: AbortSignal.timeout(6000) });
-        if (res.ok) {
-            const json = await res.json();
-            if (json?.chart?.result) return json;
-        }
-    } catch (_) { /* CORS or timeout → proxy로 재시도 */ }
+        const raw = localStorage.getItem(`stock_${TICKER}_${range}`);
+        if (!raw) return null;
+        const { data, ts } = JSON.parse(raw);
+        if (Date.now() - ts > CACHE_TTL) return null;
+        return data;
+    } catch { return null; }
+}
 
-    // 2차: CORS 프록시
-    const res = await fetch(PROXY_URL(direct), { signal: AbortSignal.timeout(10000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const json = await res.json();
-    if (!json?.chart?.result) throw new Error('데이터 형식 오류');
-    return json;
+function setCache(range, data) {
+    try {
+        localStorage.setItem(`stock_${TICKER}_${range}`,
+            JSON.stringify({ data, ts: Date.now() }));
+    } catch { /* 저장 공간 부족 시 무시 */ }
+}
+
+// ── Yahoo Finance 호출 (직접 + 프록시 동시 경쟁) ─────────────────────────
+async function fetchYahoo(range) {
+    const url = YAHOO_URL(range);
+    const timeout = 8000;
+
+    const tryFetch = (target) =>
+        fetch(target, { signal: AbortSignal.timeout(timeout) })
+            .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+            .then(j => { if (!j?.chart?.result) throw new Error('no result'); return j; });
+
+    // 직접 호출과 프록시를 동시에 시작 → 먼저 성공한 쪽 사용
+    return Promise.any([
+        tryFetch(url),
+        tryFetch(PROXY_URL(url)),
+    ]).catch(() => { throw new Error('데이터를 불러올 수 없습니다'); });
 }
 
 // ── 응답 파싱 ─────────────────────────────────────────────────────────────
@@ -141,33 +157,48 @@ function showError(msg) {
 let currentData = [];
 
 async function loadData(range) {
+    // 캐시 우선 확인
+    const cached = getCached(range);
+    if (cached) {
+        currentData = cached;
+        applyToChart(currentData);
+        showChart();
+        return;
+    }
+
     showLoading();
     try {
         const json = await fetchYahoo(range);
         currentData = parseYahoo(json);
+        setCache(range, currentData);
 
         if (currentData.length === 0) throw new Error('수신된 봉 데이터가 없습니다');
 
-        const candleData = currentData.map(({ time, open, high, low, close }) =>
-            ({ time, open, high, low, close }));
-        const volData = currentData.map(({ time, open, close, volume }) => ({
-            time,
-            value: volume,
-            color: close >= open ? UP_COLOR + '99' : DOWN_COLOR + '99',
-        }));
-
-        candleSeries.setData(candleData);
-        volumeSeries.setData(volData);
-        mainChart.timeScale().fitContent();
-        volumeChart.timeScale().fitContent();
-
-        updatePriceHeader(currentData);
-        updateOHLCV(currentData[currentData.length - 1]);
+        applyToChart(currentData);
         showChart();
     } catch (err) {
         console.error(err);
         showError(err.message || '데이터를 불러올 수 없습니다');
     }
+}
+
+// ── 차트에 데이터 적용 ────────────────────────────────────────────────────
+function applyToChart(data) {
+    const candleData = data.map(({ time, open, high, low, close }) =>
+        ({ time, open, high, low, close }));
+    const volData = data.map(({ time, open, close, volume }) => ({
+        time,
+        value: volume,
+        color: close >= open ? UP_COLOR + '99' : DOWN_COLOR + '99',
+    }));
+
+    candleSeries.setData(candleData);
+    volumeSeries.setData(volData);
+    mainChart.timeScale().fitContent();
+    volumeChart.timeScale().fitContent();
+
+    updatePriceHeader(data);
+    updateOHLCV(data[data.length - 1]);
 }
 
 // ── 헤더 가격 ─────────────────────────────────────────────────────────────
