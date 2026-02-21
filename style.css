@@ -214,15 +214,35 @@ main {
 .down { color: #4b8fff; }
 .flat { color: #8b949e; }
 
-/* ── Chart loading / error ── */
-.chart-loading {
+/* ── Chart wrapper / overlay ── */
+.chart-wrapper {
+    position: relative;
+}
+
+.chart-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    background: #161b22;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 12px;
-    height: 380px;
     color: #8b949e;
     font-size: 0.9rem;
+    border-radius: 6px;
+    text-align: center;
+    line-height: 1.6;
+}
+
+.chart-overlay.error {
+    color: #f85149;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.chart-overlay.hidden {
+    display: none;
 }
 
 .spinner {
@@ -232,22 +252,11 @@ main {
     border-top-color: #1f6feb;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
+    flex-shrink: 0;
 }
 
 @keyframes spin {
     to { transform: rotate(360deg); }
-}
-
-.chart-error {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 200px;
-    color: #f85149;
-    font-size: 0.9rem;
-    text-align: center;
-    padding: 16px;
-    line-height: 1.6;
 }
 
 .chart-footer {

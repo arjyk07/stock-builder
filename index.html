@@ -33,13 +33,14 @@
                     <button class="period-btn" data-period="5y">5년</button>
                 </div>
             </div>
-            <div id="chart-loading" class="chart-loading">
-                <div class="spinner"></div>
-                <span>데이터 불러오는 중…</span>
+            <div class="chart-wrapper">
+                <div id="chart-overlay" class="chart-overlay">
+                    <div class="spinner"></div>
+                    <span>데이터 불러오는 중…</span>
+                </div>
+                <div id="chart-container"></div>
+                <div id="volume-container"></div>
             </div>
-            <div id="chart-error" class="chart-error" style="display:none;"></div>
-            <div id="chart-container" style="display:none;"></div>
-            <div id="volume-container" style="display:none;"></div>
             <div class="chart-footer">
                 <div class="chart-legend">
                     <span class="legend-item up">▲ 양봉</span>

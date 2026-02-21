@@ -127,30 +127,24 @@ const volumeSeries = volumeChart.addHistogramSeries({
     scaleMargins: { top: 0.1, bottom: 0 },
 });
 
-// ── UI 상태 관리 ──────────────────────────────────────────────────────────
-const loadingEl = document.getElementById('chart-loading');
-const errorEl   = document.getElementById('chart-error');
+// ── UI 상태 관리 (오버레이 방식) ──────────────────────────────────────────
+const overlayEl = document.getElementById('chart-overlay');
 
 function showLoading() {
-    loadingEl.style.display = 'flex';
-    errorEl.style.display   = 'none';
-    chartEl.style.display   = 'none';
-    volumeEl.style.display  = 'none';
+    overlayEl.className = 'chart-overlay';
+    overlayEl.innerHTML = '<div class="spinner"></div><span>데이터 불러오는 중…</span>';
 }
 
 function showChart() {
-    loadingEl.style.display = 'none';
-    errorEl.style.display   = 'none';
-    chartEl.style.display   = 'block';
-    volumeEl.style.display  = 'block';
+    overlayEl.className = 'chart-overlay hidden';
+    // display:none 후 크기 재계산
+    mainChart.applyOptions({ width: chartEl.clientWidth });
+    volumeChart.applyOptions({ width: volumeEl.clientWidth });
 }
 
 function showError(msg) {
-    loadingEl.style.display = 'none';
-    errorEl.style.display   = 'flex';
-    chartEl.style.display   = 'none';
-    volumeEl.style.display  = 'none';
-    errorEl.innerHTML = `⚠️ ${msg}<br><small style="color:#8b949e">잠시 후 다시 시도해주세요.</small>`;
+    overlayEl.className = 'chart-overlay error';
+    overlayEl.innerHTML = `⚠️ ${msg}<br><small style="color:#8b949e">잠시 후 다시 시도해주세요.</small>`;
 }
 
 // ── 데이터 적용 ───────────────────────────────────────────────────────────
