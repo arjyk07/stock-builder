@@ -1,5 +1,5 @@
 // ── 설정 ─────────────────────────────────────────────────────────────────
-const TICKER   = '010040.KS'; // 대한광통신 Yahoo Finance 티커
+const TICKER   = '010170.KS'; // 대한광통신 Yahoo Finance 티커
 const INTERVAL = '1d';
 
 // Yahoo Finance v8 차트 API
