@@ -3,30 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>대한광통신 투자 분석</title>
+    <title>대한광통신 (010040) 투자 분석</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 </head>
 <body>
     <header>
-        <h1>대한광통신 투자 분석</h1>
+        <div class="header-inner">
+            <div class="title-group">
+                <h1>대한광통신</h1>
+                <span class="ticker">010040 · KOSPI</span>
+            </div>
+            <div class="price-group">
+                <span class="current-price" id="current-price">-</span>
+                <span class="price-change" id="price-change"></span>
+            </div>
+        </div>
     </header>
+
     <main>
-        <section class="card">
-            <h2>차트 분석</h2>
-            <div id="chart-analysis"></div>
+        <!-- 캔들 차트 -->
+        <section class="card chart-card">
+            <div class="card-header">
+                <h2>일별 캔들 차트</h2>
+                <div class="period-buttons">
+                    <button class="period-btn active" data-period="3m">3개월</button>
+                    <button class="period-btn" data-period="6m">6개월</button>
+                    <button class="period-btn" data-period="1y">1년</button>
+                    <button class="period-btn" data-period="all">전체</button>
+                </div>
+            </div>
+            <div id="chart-container"></div>
+            <div id="volume-container"></div>
+            <div class="chart-legend">
+                <span class="legend-item up">▲ 양봉</span>
+                <span class="legend-item down">▼ 음봉</span>
+            </div>
         </section>
-        <section class="card">
+
+        <!-- 오늘의 시황 -->
+        <section class="card info-card">
+            <h2>시황 요약</h2>
+            <div class="info-grid" id="ohlcv-info">
+                <div class="info-item">
+                    <span class="label">시가</span>
+                    <span class="value" id="info-open">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">고가</span>
+                    <span class="value up" id="info-high">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">저가</span>
+                    <span class="value down" id="info-low">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">종가</span>
+                    <span class="value" id="info-close">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">거래량</span>
+                    <span class="value" id="info-volume">-</span>
+                </div>
+                <div class="info-item">
+                    <span class="label">날짜</span>
+                    <span class="value" id="info-date">-</span>
+                </div>
+            </div>
+        </section>
+
+        <!-- 기업 정보 -->
+        <section class="card info-card">
             <h2>기업 정보</h2>
-            <div id="company-info"></div>
-        </section>
-        <section class="card">
-            <h2>투자자 분석</h2>
-            <div id="investor-analysis"></div>
+            <div class="company-table">
+                <div class="company-row">
+                    <span class="label">업종</span>
+                    <span class="value">통신장비 / 광케이블</span>
+                </div>
+                <div class="company-row">
+                    <span class="label">시장</span>
+                    <span class="value">KOSPI</span>
+                </div>
+                <div class="company-row">
+                    <span class="label">종목코드</span>
+                    <span class="value">010040</span>
+                </div>
+                <div class="company-row">
+                    <span class="label">결산월</span>
+                    <span class="value">12월</span>
+                </div>
+                <div class="company-row">
+                    <span class="label">주요제품</span>
+                    <span class="value">광섬유, 광케이블, FTTH 장비</span>
+                </div>
+            </div>
         </section>
     </main>
+
     <footer>
-        <p>&copy; 2023 대한광통신 투자 분석. All rights reserved.</p>
+        <p>본 자료는 투자 참고용이며 투자 손실에 대한 책임은 투자자 본인에게 있습니다.</p>
+        <p>&copy; 2026 대한광통신 투자 분석</p>
     </footer>
+
     <script src="main.js"></script>
 </body>
 </html>

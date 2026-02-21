@@ -1,33 +1,237 @@
-body {
-    background-color: #121212;
-    color: #ffffff;
-    font-family: sans-serif;
+*, *::before, *::after {
+    box-sizing: border-box;
     margin: 0;
-    padding: 20px;
+    padding: 0;
 }
 
-header, footer {
-    text-align: center;
-    padding: 20px 0;
+body {
+    background-color: #0d1117;
+    color: #e6edf3;
+    font-family: 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+    min-height: 100vh;
 }
 
-main {
+/* ── Header ── */
+header {
+    background-color: #161b22;
+    border-bottom: 1px solid #30363d;
+    padding: 16px 24px;
+}
+
+.header-inner {
+    max-width: 1200px;
+    margin: 0 auto;
     display: flex;
+    align-items: center;
+    justify-content: space-between;
     flex-wrap: wrap;
-    justify-content: center;
-    gap: 20px;
+    gap: 12px;
 }
 
+.title-group h1 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.ticker {
+    font-size: 0.85rem;
+    color: #8b949e;
+    margin-left: 8px;
+}
+
+.price-group {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+}
+
+.current-price {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #ffffff;
+}
+
+.price-change {
+    font-size: 1rem;
+    font-weight: 600;
+}
+
+/* ── Main Layout ── */
+main {
+    max-width: 1200px;
+    margin: 24px auto;
+    padding: 0 16px;
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto;
+    gap: 16px;
+}
+
+/* ── Cards ── */
 .card {
-    background-color: #1e1e1e;
-    border-radius: 8px;
+    background-color: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 10px;
     padding: 20px;
-    width: 300px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
 }
 
-@media (max-width: 768px) {
-    .card {
-        width: 100%;
+.chart-card {
+    grid-column: 1 / -1;
+}
+
+.card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.card h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #c9d1d9;
+    margin-bottom: 16px;
+}
+
+.card-header h2 {
+    margin-bottom: 0;
+}
+
+/* ── Period Buttons ── */
+.period-buttons {
+    display: flex;
+    gap: 6px;
+}
+
+.period-btn {
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 6px;
+    color: #8b949e;
+    cursor: pointer;
+    font-size: 0.8rem;
+    padding: 4px 10px;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.period-btn:hover {
+    background: #30363d;
+    color: #c9d1d9;
+}
+
+.period-btn.active {
+    background: #1f6feb;
+    border-color: #1f6feb;
+    color: #ffffff;
+}
+
+/* ── Chart containers ── */
+#chart-container {
+    width: 100%;
+    height: 380px;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+#volume-container {
+    width: 100%;
+    height: 100px;
+    margin-top: 4px;
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.chart-legend {
+    display: flex;
+    gap: 16px;
+    margin-top: 10px;
+    font-size: 0.8rem;
+}
+
+.legend-item {
+    color: #8b949e;
+}
+
+/* ── Bottom Info Cards ── */
+.bottom-cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.info-card {
+    /* inherits .card */
+}
+
+.info-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.info-item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.company-table {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.company-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #21262d;
+    padding-bottom: 8px;
+    font-size: 0.9rem;
+}
+
+.company-row:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.label {
+    font-size: 0.8rem;
+    color: #8b949e;
+}
+
+.value {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #e6edf3;
+}
+
+/* ── Colors ── */
+.up   { color: #ff4b4b; }
+.down { color: #4b8fff; }
+.flat { color: #8b949e; }
+
+/* ── Footer ── */
+footer {
+    text-align: center;
+    padding: 24px 16px;
+    border-top: 1px solid #21262d;
+    color: #484f58;
+    font-size: 0.78rem;
+    line-height: 1.8;
+    margin-top: 24px;
+}
+
+/* ── Responsive ── */
+@media (min-width: 768px) {
+    main {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .chart-card {
+        grid-column: 1 / -1;
     }
 }
