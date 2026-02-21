@@ -1,207 +1,238 @@
-// ── 샘플 데이터 (대한광통신 일별 OHLCV) ──────────────────────────────────
-// 실제 서비스에서는 증권 API로 교체하세요.
-const ALL_DATA = generateSampleData();
+// ── 설정 ─────────────────────────────────────────────────────────────────
+const TICKER   = '010040.KS'; // 대한광통신 Yahoo Finance 티커
+const INTERVAL = '1d';
 
-function generateSampleData() {
-    const data = [];
-    // 2025-01-02 부터 2026-02-20 까지 영업일 기준 시뮬레이션
-    let price = 3800;
-    const startDate = new Date('2025-01-02');
-    const endDate   = new Date('2026-02-20');
+// Yahoo Finance v8 차트 API
+const YAHOO_URL = (range) =>
+    `https://query1.finance.yahoo.com/v8/finance/chart/${TICKER}?interval=${INTERVAL}&range=${range}`;
 
-    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-        const dayOfWeek = d.getDay();
-        if (dayOfWeek === 0 || dayOfWeek === 6) continue; // 주말 제외
+// CORS 프록시 (직접 호출 실패 시 자동 전환)
+const PROXY_URL = (url) =>
+    `https://corsproxy.io/?${encodeURIComponent(url)}`;
 
-        const change  = (Math.random() - 0.48) * 120;
-        const open    = Math.round(price);
-        const close   = Math.round(price + change);
-        const high    = Math.round(Math.max(open, close) + Math.random() * 80);
-        const low     = Math.round(Math.min(open, close) - Math.random() * 80);
-        const volume  = Math.round(50000 + Math.random() * 500000);
+// ── Yahoo Finance 호출 ────────────────────────────────────────────────────
+async function fetchYahoo(range) {
+    const direct = YAHOO_URL(range);
 
-        data.push({
-            time:   d.toISOString().slice(0, 10),
-            open:   Math.max(open, 100),
-            high:   Math.max(high, 100),
-            low:    Math.max(low,  100),
-            close:  Math.max(close, 100),
-            volume,
-        });
+    // 1차: 직접 호출
+    try {
+        const res = await fetch(direct, { signal: AbortSignal.timeout(6000) });
+        if (res.ok) {
+            const json = await res.json();
+            if (json?.chart?.result) return json;
+        }
+    } catch (_) { /* CORS or timeout → proxy로 재시도 */ }
 
-        price = close;
-    }
-    return data;
+    // 2차: CORS 프록시
+    const res = await fetch(PROXY_URL(direct), { signal: AbortSignal.timeout(10000) });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (!json?.chart?.result) throw new Error('데이터 형식 오류');
+    return json;
 }
 
-// ── 기간 필터 ─────────────────────────────────────────────────────────────
-function filterData(period) {
-    const last = new Date(ALL_DATA[ALL_DATA.length - 1].time);
-    const from = new Date(last);
+// ── 응답 파싱 ─────────────────────────────────────────────────────────────
+function parseYahoo(json) {
+    const result     = json.chart.result[0];
+    const timestamps = result.timestamp;
+    const quote      = result.indicators.quote[0];
 
-    if (period === '3m') from.setMonth(from.getMonth() - 3);
-    else if (period === '6m') from.setMonth(from.getMonth() - 6);
-    else if (period === '1y') from.setFullYear(from.getFullYear() - 1);
-    else return ALL_DATA; // 전체
-
-    const fromStr = from.toISOString().slice(0, 10);
-    return ALL_DATA.filter(d => d.time >= fromStr);
+    return timestamps
+        .map((ts, i) => ({
+            time:   new Date(ts * 1000).toISOString().slice(0, 10),
+            open:   quote.open[i]   != null ? Math.round(quote.open[i])   : null,
+            high:   quote.high[i]   != null ? Math.round(quote.high[i])   : null,
+            low:    quote.low[i]    != null ? Math.round(quote.low[i])    : null,
+            close:  quote.close[i]  != null ? Math.round(quote.close[i])  : null,
+            volume: quote.volume[i] ?? 0,
+        }))
+        .filter(d => d.open && d.high && d.low && d.close); // 결측 봉 제거
 }
 
-// ── 차트 생성 ─────────────────────────────────────────────────────────────
-const CHART_BG    = '#161b22';
-const GRID_COLOR  = '#21262d';
-const TEXT_COLOR  = '#8b949e';
-const UP_COLOR    = '#ff4b4b'; // 한국 관례: 상승=빨강
-const DOWN_COLOR  = '#4b8fff'; // 한국 관례: 하락=파랑
+// ── 차트 초기화 ───────────────────────────────────────────────────────────
+const CHART_BG   = '#161b22';
+const GRID_COLOR = '#21262d';
+const TEXT_COLOR = '#8b949e';
+const UP_COLOR   = '#ff4b4b'; // 한국 관례: 상승 = 빨강
+const DOWN_COLOR = '#4b8fff'; // 한국 관례: 하락 = 파랑
 
 const chartEl  = document.getElementById('chart-container');
 const volumeEl = document.getElementById('volume-container');
 
-const commonOptions = {
+const baseOptions = {
     layout: {
         background: { color: CHART_BG },
         textColor:  TEXT_COLOR,
     },
     grid: {
-        vertLines:  { color: GRID_COLOR },
-        horzLines:  { color: GRID_COLOR },
+        vertLines: { color: GRID_COLOR },
+        horzLines: { color: GRID_COLOR },
     },
-    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    crosshair:       { mode: LightweightCharts.CrosshairMode.Normal },
     rightPriceScale: { borderColor: GRID_COLOR },
     timeScale: {
-        borderColor:     GRID_COLOR,
-        timeVisible:     true,
-        secondsVisible:  false,
-        tickMarkFormatter: (time) => {
-            const d = new Date(time * 1000);
-            return `${d.getMonth() + 1}/${d.getDate()}`;
-        },
+        borderColor:    GRID_COLOR,
+        timeVisible:    true,
+        secondsVisible: false,
     },
-    handleScroll:   true,
-    handleScale:    true,
+    handleScroll: true,
+    handleScale:  true,
 };
 
-// 메인 캔들 차트
 const mainChart = LightweightCharts.createChart(chartEl, {
-    ...commonOptions,
+    ...baseOptions,
     width:  chartEl.clientWidth,
     height: 380,
 });
 
 const candleSeries = mainChart.addCandlestickSeries({
-    upColor:        UP_COLOR,
-    downColor:      DOWN_COLOR,
-    borderUpColor:  UP_COLOR,
+    upColor:         UP_COLOR,
+    downColor:       DOWN_COLOR,
+    borderUpColor:   UP_COLOR,
     borderDownColor: DOWN_COLOR,
-    wickUpColor:    UP_COLOR,
-    wickDownColor:  DOWN_COLOR,
+    wickUpColor:     UP_COLOR,
+    wickDownColor:   DOWN_COLOR,
 });
 
-// 거래량 차트 (별도 컨테이너)
 const volumeChart = LightweightCharts.createChart(volumeEl, {
-    ...commonOptions,
+    ...baseOptions,
     width:  volumeEl.clientWidth,
     height: 100,
     rightPriceScale: {
-        borderColor: GRID_COLOR,
+        borderColor:  GRID_COLOR,
         scaleMargins: { top: 0.1, bottom: 0 },
     },
-    timeScale: {
-        ...commonOptions.timeScale,
-        visible: false, // 시간 축은 메인 차트에만 표시
-    },
+    timeScale: { ...baseOptions.timeScale, visible: false },
 });
 
 const volumeSeries = volumeChart.addHistogramSeries({
-    priceFormat:     { type: 'volume' },
-    priceScaleId:    'volume',
-    scaleMargins:    { top: 0.1, bottom: 0 },
+    priceFormat:  { type: 'volume' },
+    priceScaleId: 'volume',
+    scaleMargins: { top: 0.1, bottom: 0 },
 });
 
-// ── 데이터 적용 ───────────────────────────────────────────────────────────
-function applyData(period) {
-    const filtered = filterData(period);
-    const candleData = filtered.map(({ time, open, high, low, close }) => ({ time, open, high, low, close }));
-    const volData    = filtered.map(({ time, open, close, volume }) => ({
-        time,
-        value: volume,
-        color: close >= open ? UP_COLOR + '99' : DOWN_COLOR + '99',
-    }));
+// ── UI 상태 관리 ──────────────────────────────────────────────────────────
+const loadingEl = document.getElementById('chart-loading');
+const errorEl   = document.getElementById('chart-error');
 
-    candleSeries.setData(candleData);
-    volumeSeries.setData(volData);
-
-    mainChart.timeScale().fitContent();
-    volumeChart.timeScale().fitContent();
-
-    // 마지막 봉 정보 업데이트
-    updateOHLCV(filtered[filtered.length - 1]);
-    updatePriceHeader(filtered);
+function showLoading() {
+    loadingEl.style.display = 'flex';
+    errorEl.style.display   = 'none';
+    chartEl.style.display   = 'none';
+    volumeEl.style.display  = 'none';
 }
 
-// ── 헤더 가격 표시 ────────────────────────────────────────────────────────
+function showChart() {
+    loadingEl.style.display = 'none';
+    errorEl.style.display   = 'none';
+    chartEl.style.display   = 'block';
+    volumeEl.style.display  = 'block';
+}
+
+function showError(msg) {
+    loadingEl.style.display = 'none';
+    errorEl.style.display   = 'flex';
+    chartEl.style.display   = 'none';
+    volumeEl.style.display  = 'none';
+    errorEl.innerHTML = `⚠️ ${msg}<br><small style="color:#8b949e">잠시 후 다시 시도해주세요.</small>`;
+}
+
+// ── 데이터 적용 ───────────────────────────────────────────────────────────
+let currentData = [];
+
+async function loadData(range) {
+    showLoading();
+    try {
+        const json = await fetchYahoo(range);
+        currentData = parseYahoo(json);
+
+        if (currentData.length === 0) throw new Error('수신된 봉 데이터가 없습니다');
+
+        const candleData = currentData.map(({ time, open, high, low, close }) =>
+            ({ time, open, high, low, close }));
+        const volData = currentData.map(({ time, open, close, volume }) => ({
+            time,
+            value: volume,
+            color: close >= open ? UP_COLOR + '99' : DOWN_COLOR + '99',
+        }));
+
+        candleSeries.setData(candleData);
+        volumeSeries.setData(volData);
+        mainChart.timeScale().fitContent();
+        volumeChart.timeScale().fitContent();
+
+        updatePriceHeader(currentData);
+        updateOHLCV(currentData[currentData.length - 1]);
+        showChart();
+    } catch (err) {
+        console.error(err);
+        showError(err.message || '데이터를 불러올 수 없습니다');
+    }
+}
+
+// ── 헤더 가격 ─────────────────────────────────────────────────────────────
 function updatePriceHeader(data) {
     const last = data[data.length - 1];
     const prev = data[data.length - 2];
 
-    const priceEl  = document.getElementById('current-price');
-    const changeEl = document.getElementById('price-change');
-
-    priceEl.textContent = formatPrice(last.close);
+    document.getElementById('current-price').textContent = fmt(last.close);
 
     if (prev) {
-        const diff    = last.close - prev.close;
-        const pct     = ((diff / prev.close) * 100).toFixed(2);
-        const sign    = diff >= 0 ? '+' : '';
-        const cls     = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
-        changeEl.textContent  = `${sign}${formatPrice(diff)} (${sign}${pct}%)`;
-        changeEl.className    = `price-change ${cls}`;
+        const diff = last.close - prev.close;
+        const pct  = ((diff / prev.close) * 100).toFixed(2);
+        const sign = diff >= 0 ? '+' : '';
+        const cls  = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+        const el   = document.getElementById('price-change');
+        el.textContent = `${sign}${fmt(diff)} (${sign}${pct}%)`;
+        el.className   = `price-change ${cls}`;
     }
 }
 
-// ── 시황 요약 패널 ────────────────────────────────────────────────────────
+// ── OHLCV 패널 ────────────────────────────────────────────────────────────
 function updateOHLCV(bar) {
     if (!bar) return;
-    document.getElementById('info-date').textContent   = bar.time;
-    document.getElementById('info-open').textContent   = formatPrice(bar.open);
-    document.getElementById('info-high').textContent   = formatPrice(bar.high);
-    document.getElementById('info-low').textContent    = formatPrice(bar.low);
-    document.getElementById('info-close').textContent  = formatPrice(bar.close);
-    document.getElementById('info-volume').textContent = bar.volume.toLocaleString('ko-KR') + '주';
+    const dateStr = typeof bar.time === 'number'
+        ? new Date(bar.time * 1000).toISOString().slice(0, 10)
+        : bar.time;
+    document.getElementById('info-date').textContent   = dateStr;
+    document.getElementById('info-open').textContent   = fmt(bar.open);
+    document.getElementById('info-high').textContent   = fmt(bar.high);
+    document.getElementById('info-low').textContent    = fmt(bar.low);
+    document.getElementById('info-close').textContent  = fmt(bar.close);
+    document.getElementById('info-volume').textContent =
+        (bar.volume ?? 0).toLocaleString('ko-KR') + '주';
 }
 
-// 크로스헤어 이동 시 OHLCV 실시간 갱신
 mainChart.subscribeCrosshairMove((param) => {
-    if (!param || !param.time) return;
+    if (!param?.time) return;
     const bar = param.seriesData.get(candleSeries);
-    if (bar) updateOHLCV({ time: param.time, ...bar });
+    if (bar) updateOHLCV({ time: param.time, ...bar,
+        volume: currentData.find(d => d.time === param.time)?.volume });
 });
 
-// ── 기간 버튼 이벤트 ──────────────────────────────────────────────────────
-let activePeriod = '3m';
+// ── 기간 버튼 ─────────────────────────────────────────────────────────────
+let activePeriod = '3mo';
 
 document.querySelectorAll('.period-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+        if (btn.dataset.period === activePeriod) return;
         document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         activePeriod = btn.dataset.period;
-        applyData(activePeriod);
+        loadData(activePeriod);
     });
 });
 
 // ── 반응형 리사이즈 ───────────────────────────────────────────────────────
-const resizeObserver = new ResizeObserver(() => {
-    mainChart.applyOptions({  width: chartEl.clientWidth });
+new ResizeObserver(() => {
+    mainChart.applyOptions({ width: chartEl.clientWidth });
     volumeChart.applyOptions({ width: volumeEl.clientWidth });
-});
-resizeObserver.observe(chartEl);
-resizeObserver.observe(volumeEl);
+}).observe(chartEl);
 
-// ── 초기 렌더 ─────────────────────────────────────────────────────────────
-applyData(activePeriod);
+// ── 초기 로드 ─────────────────────────────────────────────────────────────
+loadData(activePeriod);
 
 // ── 유틸 ──────────────────────────────────────────────────────────────────
-function formatPrice(n) {
+function fmt(n) {
     return Number(n).toLocaleString('ko-KR') + '원';
 }
