@@ -177,6 +177,8 @@ async function loadData(range) {
 }
 
 // ── 차트에 데이터 적용 ────────────────────────────────────────────────────
+let volumeByDate = {}; // 날짜 문자열 → volume 빠른 조회용
+
 function applyToChart(data) {
     const candleData = data.map(({ time, open, high, low, close }) =>
         ({ time, open, high, low, close }));
@@ -185,6 +187,9 @@ function applyToChart(data) {
         value: volume,
         color: close >= open ? UP_COLOR + '99' : DOWN_COLOR + '99',
     }));
+
+    // 거래량 빠른 조회 맵 재구성
+    volumeByDate = Object.fromEntries(data.map(d => [d.time, d.volume]));
 
     candleSeries.setData(candleData);
     volumeSeries.setData(volData);
@@ -231,8 +236,12 @@ function updateOHLCV(bar) {
 mainChart.subscribeCrosshairMove((param) => {
     if (!param?.time) return;
     const bar = param.seriesData.get(candleSeries);
-    if (bar) updateOHLCV({ time: param.time, ...bar,
-        volume: currentData.find(d => d.time === param.time)?.volume });
+    if (!bar) return;
+    // param.time은 Unix timestamp(초) 또는 BusinessDay 객체일 수 있으므로 문자열로 변환
+    const timeStr = typeof param.time === 'number'
+        ? new Date(param.time * 1000).toISOString().slice(0, 10)
+        : `${param.time.year}-${String(param.time.month).padStart(2,'0')}-${String(param.time.day).padStart(2,'0')}`;
+    updateOHLCV({ time: timeStr, ...bar, volume: volumeByDate[timeStr] ?? 0 });
 });
 
 // ── 기간 버튼 ─────────────────────────────────────────────────────────────
